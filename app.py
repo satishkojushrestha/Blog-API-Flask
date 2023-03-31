@@ -21,8 +21,8 @@ class RegisterUser(Resource):
         if result:
             abort(409, message="User with that username already exists.")        
         user = User(
-            first_name=data['first-name'],
-            last_name=data['last-name'],
+            first_name=data['first_name'],
+            last_name=data['last_name'],
             username=data['username'],
             password=generate_password_hash(data['password']),
         )
@@ -72,27 +72,53 @@ resource_fields = {
 }
 
 
-class Post(Resource):
 
-    @marshal_with(resource_fields)
-    def get(self):
-        check_login()
-        return User.query.all()
+@app.route('/admin/post')
+@marshal_with(resource_fields)
+def get_posts():
+    check_login()
+    return User.query.all()
 
-    def post(self):
-        check_login()
-        username = session['username']
-        user = User.query.filter_by(username=username).first()
-        data = request.form        
-        post = UserPost(     
-            user_id = user.user_id,
-            title = data['title'],       
-            body = data['body'],         
-        )
-        db.session.add(post)
-        db.session.commit()
-        return {"message": "New post created."} 
+@app.route('/admin/post/create', methods=['POST'])
+def create_post():
+    check_login()
+    username = session['username']
+    user = User.query.filter_by(username=username).first()
+    data = request.form        
+    post = UserPost(     
+        user_id = user.user_id,
+        title = data['title'],       
+        body = data['body'],         
+    )
+    db.session.add(post)
+    db.session.commit()
+    return {"message": "New post created."} 
 
+@app.route('/admin/post/update/<int:post_id>', methods=['PATCH'])
+@marshal_with(resource_fields)
+def update_post(post_id):
+    check_login()
+    post = UserPost.query.filter_by(post_id=post_id).first()
+    if not post:
+        abort(404, message="Post Not Found")
+    data = request.form
+    if data['title']:
+        post.title = data['title']     
+    if data['body']:
+        post.body = data['body']
+
+    db.session.commit() 
+    return post  
+
+@app.route('/admin/post/delete/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id):
+    check_login()
+    post = UserPost.query.filter_by(post_id=post_id).first()
+    if not post:
+        abort(404, message="Post Not Found")
+    db.session.delete(post)
+    db.session.commit()
+    return '', 204
 
 class Blog(Resource):
     
@@ -100,8 +126,7 @@ class Blog(Resource):
         return "Hello"
 
 api.add_resource(Blog,'/') 
-api.add_resource(RegisterUser,'/user/register') 
-api.add_resource(Post,'/admin/post') 
+api.add_resource(RegisterUser,'/user/register')  
 
 with app.app_context():
     db.create_all()
