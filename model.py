@@ -12,9 +12,9 @@ class User(db.Model):
     def __repr__(self):
         return self.username
 
-class Post(db.Model):
+class UserPost(db.Model):
     post_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user = db.Column(db.Integer, db.ForeignKey(User.user_id), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey(User.user_id), nullable=False)
     title = db.Column(db.String(20), nullable=False)
     body = db.Column(db.String(200), nullable=False)
     time_Stamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
