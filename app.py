@@ -1,5 +1,5 @@
 from flask import Flask, request, session, jsonify
-from flask_restful import Api, Resource, abort, fields, marshal_with
+from flask_restful import Api, abort, fields, marshal_with
 from database import db, db_config
 from model import User, UserPost
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -10,25 +10,25 @@ api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_config
 db.init_app(app)
 app.config['SECRET_KEY'] = 'flask-apitest-secretekey'
- 
 app.config['PERMANENT_SESSION_LIFETIME'] =  timedelta(minutes=10)
 
-class RegisterUser(Resource):
-
-    def post(self):          
-        data = request.form
-        result = User.query.filter_by(username=data['username']).first()
-        if result:
-            abort(409, message="User with that username already exists.")        
-        user = User(
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            username=data['username'],
-            password=generate_password_hash(data['password']),
-        )
-        db.session.add(user)
-        db.session.commit()
-        return {"message": "User created successfully!"},200
+#function adding users in database
+@app.route('/user/register', methods=['POST'])
+def post(self):          
+    data = request.form
+    result = User.query.filter_by(username=data['username']).first()
+    if result:
+        abort(409, message="User with that username already exists.")        
+    user = User(
+        first_name=data['first_name'],
+        last_name=data['last_name'],
+        username=data['username'],
+        password=generate_password_hash(data['password']), #generate_password_hash is a function to hash passwords, we are storing hashed passowrd instead of storing plain text 
+    )
+    #adding new user to the database
+    db.session.add(user)    
+    db.session.commit()
+    return {"message": "User created successfully!"},200
     
 
 @app.route('/login',methods=['POST'])
@@ -62,22 +62,19 @@ def logout():
         session.pop('username', None)
     return jsonify({'message' : 'You successfully logged out'})
 
-
+#resource_field is a way to define how an object should be serialized
 resource_fields = {
     'post_id': fields.Integer,
     'user_id': fields.Integer,
     'title': fields.String,
     'body': fields.String,
-    'time_stamp': fields.DateTime,
 }
-
-
 
 @app.route('/admin/post')
 @marshal_with(resource_fields)
 def get_posts():
     check_login()
-    return User.query.all()
+    return UserPost.query.all()
 
 @app.route('/admin/post/create', methods=['POST'])
 def create_post():
@@ -120,13 +117,57 @@ def delete_post(post_id):
     db.session.commit()
     return '', 204
 
-class Blog(Resource):
-    
-    def get(self):
-        return "Hello"
+blog_fields = {
+    'post_id': fields.Integer,
+    'title': fields.String,
+    'body': fields.String
+}
 
-api.add_resource(Blog,'/') 
-api.add_resource(RegisterUser,'/user/register')  
+#without pagination
+@app.route('/blog/all',methods=['GET'])
+@marshal_with(blog_fields)
+def get_blog():
+    return UserPost.query.all()
+
+@app.route('/blog/<int:post_id>', methods=['GET'])
+@marshal_with(blog_fields)
+def get_specific_blog(post_id):
+    post = UserPost.query.filter_by(post_id=post_id).first()
+    if not post:
+        abort(404, message="Blog not found!")
+    return post
+
+#with pagination
+@app.route('/blog', defaults={'page_number':None}, methods=['GET'])
+@app.route('/blog/paginate/<int:page_number>',methods=['GET'])
+def get_blog_paginated(page_number):
+    if not page_number:
+        paginate = UserPost.query.paginate(per_page=5)
+    else:
+        paginate = UserPost.query.paginate(per_page=5, page=page_number)
+
+    data = []
+
+    for post_content in paginate.items:
+        data.append({
+            'post_id': post_content.post_id,
+            'title': post_content.title,
+            'body': post_content.body
+        })
+    
+    meta = {
+        'has_next': paginate.has_next,
+        'current_page': paginate.page,
+        'posts_per_page': paginate.per_page,
+        'has_previous': paginate.has_prev,
+        'total_numbers_of_pages': paginate.pages,
+        'next_page_number': paginate.next_num,
+        'previous_page_number': paginate.prev_num,
+        'total_number_of_items': paginate.total
+    }
+    
+    return jsonify({'data': data, 'meta':meta}), 200
+
 
 with app.app_context():
     db.create_all()
