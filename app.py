@@ -14,11 +14,11 @@ app.config['PERMANENT_SESSION_LIFETIME'] =  timedelta(minutes=10)
 
 #function adding users in database
 @app.route('/user/register', methods=['POST'])
-def post(self):          
+def post():          
     data = request.form
     result = User.query.filter_by(username=data['username']).first()
     if result:
-        abort(409, message="User with that username already exists.")        
+        return {"message": "User already exists with that username"}, 409        
     user = User(
         first_name=data['first_name'],
         last_name=data['last_name'],
@@ -138,7 +138,7 @@ def get_specific_blog(post_id):
     return post
 
 #with pagination
-@app.route('/blog', defaults={'page_number':None}, methods=['GET'])
+@app.route('/blog/paginate', defaults={'page_number':None}, methods=['GET'])
 @app.route('/blog/paginate/<int:page_number>',methods=['GET'])
 def get_blog_paginated(page_number):
     if not page_number:
